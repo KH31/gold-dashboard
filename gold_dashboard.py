@@ -444,7 +444,7 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 | DXY | {dxy_s} | {dxy_m} | {dxy_p} {dxy_sl} | {s.scores.get('DXY',0):+d} | ★★★★ |
 | 10Y实际利率 | {rv}% | {rm}% | {rp} {rs} | {s.scores.get('Real_Yield',0):+d} | ★★★★ |
 | 金银比 | {gsr} | {gsz} | {gsd} | {s.scores.get('Gold_Silver',0):+d} | ★★★ |
-| | 10年分位: {gs_pct}% → {gs_bar} | 最低 {gs_min} | 最高 {gs_max} | | |
+| | 10年分位: {gs_pct}% → {gs_bar} | 最低 {gs_min:.4f} | 最高 {gs_max:.4f} | | |
 | 铜金比 | {cgr_txt} | {cgz} | {cgd} | {s.scores.get('Copper_Gold',0):+d} | ★★★ |
 | | 10年分位: {cg_pct}% → {cg_bar} | 最低 {cg_min:.4f} | 最高 {cg_max:.4f} | | |
 | **价格层小计** | | | | **{p_sub:+d}** | |
