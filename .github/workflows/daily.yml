@@ -12,6 +12,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@v5
         with:
@@ -25,14 +27,13 @@ jobs:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: python gold_dashboard.py
 
+      - name: Show report
+        run: cat 黄金看板.md
+
       - name: Commit & push report
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "gold-bot"
           git config user.email "bot@gold.local"
-          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          cp 黄金看板.md daily_report_copy.md
-          git add 黄金看板.md daily_report_copy.md .gold_cache.json
-          git diff --cached --quiet || git commit -m "auto: update gold dashboard $(date +%Y-%m-%d)"
-          git push
+          git add 黄金看板.md
+          git commit -m "auto: update gold dashboard $(date +%Y-%m-%d)" || echo "No changes to commit"
+          git push || echo "Push failed (non-blocking)"
