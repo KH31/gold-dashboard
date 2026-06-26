@@ -452,9 +452,35 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     wgc_n = driver_data.get('wgc_now') or "—"
     wgc_s = driver_data.get('wgc_signal') or "数据不足"
 
+    # 黄金现价 & 业绩
+    gold_close = None
+    gold_ytd = "—"
+    gold_1y = "—"
+    gold_spot = "—"
+    try:
+        gold_data = yf.download("GC=F", period="2y", progress=False)
+        if not gold_data.empty:
+            gc = gold_data["Close"].dropna()
+            gold_spot = f"${gc.iloc[-1]:.0f}"
+            # YTD
+            ytd_open = gc[gc.index >= str(gc.index[-1].year)]
+            if len(ytd_open) > 0:
+                gold_ytd = f"{((gc.iloc[-1] / ytd_open.iloc[0]) - 1) * 100:+.1f}%"
+            # 1Y
+            yr_ago = gc.index[-1] - pd.DateOffset(years=1)
+            yr_data = gc[gc.index >= yr_ago]
+            if len(yr_data) > 0:
+                gold_1y = f"{((gc.iloc[-1] / yr_data.iloc[0]) - 1) * 100:+.1f}%"
+    except:
+        pass
+
     return f"""# 黄金看板
 
 > 自动生成 · {now}
+
+| 🥇 现货 | 📅 YTD | 📆 1年 |
+|------|------|------|
+| {gold_spot} | {gold_ytd} | {gold_1y} |
 
 ---
 
