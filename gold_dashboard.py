@@ -134,18 +134,22 @@ def fetch_gld_holdings():
 
 def fetch_cot_report():
     """抓取 CFTC COT 黄金 Managed Money 净多头"""
+    import io, csv
     try:
-        url = "https://www.cftc.gov/files/dea/history/fut_disagg_txt_hist_2026.zip"
-        # Fallback: 用最新的 public CSV
-        # CFTC 文件很大，只提取黄金期货
-        url_gold = "https://www.cftc.gov/dea/newcot/c_disagg.txt"
-        df = pd.read_csv(url_gold, skiprows=2, sep="|")
-        # 实际格式复杂，简化为返回 None 提示手动查看
-        print("[INFO] COT 数据需从 CFTC 官网手动下载。使用近似替代。")
-        return pd.Series(dtype=float)
+        url = "https://www.cftc.gov/dea/newcot/c_disagg.txt"
+        df_text = pd.read_csv(url, header=None, dtype=str)
+        # 找黄金行
+        gold_row = df_text[df_text.iloc[:, 0].str.contains("GOLD - COMMODITY", na=False)]
+        if gold_row.empty:
+            return None, None
+        row = gold_row.iloc[0].tolist()
+        mgd_long = int(row[12].strip())
+        mgd_short = int(row[13].strip())
+        net = mgd_long - mgd_short
+        return net, mgd_long
     except Exception as e:
         print(f"[WARN] COT: {e}")
-        return pd.Series(dtype=float)
+        return None, None
 
 # ═══════════════ 第三层：长期驱动 ═══════════════
 
@@ -430,14 +434,24 @@ def main():
     else:
         scorer.add("GLD", 0, 4)
 
-    # COT — fallback: approximate
-    cot_net_long = "需手动查看CFTC"
+    # COT — CFTC Managed Money
+    cot_net, cot_long = fetch_cot_report()
+    cot_net_str = "需手动查看CFTC"
     cot_trend, cot_signal = "→", "数据不足"
-    scorer.add("COT", 0, 3)
+    if cot_net is not None:
+        cot_net_str = f"{cot_net:+,}"
+        if cot_net > 0:
+            cot_trend, cot_signal = "↑", "净多头—利多"
+            scorer.add("COT", +1, 3)
+        else:
+            cot_trend, cot_signal = "↓", "净空头—利空"
+            scorer.add("COT", -1, 3)
+    else:
+        scorer.add("COT", 0, 3)
 
     flow_data = {
         "gld_tons": gld_tons_now, "gld_trend": gld_trend, "gld_signal": gld_signal,
-        "cot_net_long": cot_net_long, "cot_trend": cot_trend, "cot_signal": cot_signal,
+        "cot_net_long": cot_net_str, "cot_trend": cot_trend, "cot_signal": cot_signal,
     }
 
     print("[3/5] 第三层：长期驱动...")
