@@ -378,11 +378,58 @@ def _make_report(scorer, price_data, flow_data, driver_data):
         fmt = d.get("fmt", ".2f")
         return f"{val:{fmt}}"
 
-    # 金属建议——基于10年分位
+    # 金属建议——综合 3Y/5Y/10Y 分位
+    # 加权：10年权重0.5，5年0.3，3年0.2
+    def _wavg(v3, v5, v10):
+        vals = [v for v in [v3, v5, v10] if v is not None]
+        if not vals: return None
+        w3, w5, w10 = 0.2, 0.3, 0.5
+        total = 0
+        wsum = 0
+        if v3 is not None: total += v3*w3; wsum += w3
+        if v5 is not None: total += v5*w5; wsum += w5
+        if v10 is not None: total += v10*w10; wsum += w10
+        return int(total / wsum) if wsum > 0 else None
+
+    gs3, gs5, gs10 = _p("GS","3Y"), _p("GS","5Y"), _p("GS","10Y")
+    cg3, cg5, cg10 = _p("CG","3Y"), _p("CG","5Y"), _p("CG","10Y")
+    gs_avg = _wavg(gs3, gs5, gs10)
+    cg_avg = _wavg(cg3, cg5, cg10)
+
     metal_advice = ""
     metal_score = 0
-    gs10 = _p("GS", "10Y")
-    cg10 = _p("CG", "10Y")
+    if gs_avg is not None:
+        if gs_avg > 80:
+            metal_advice += f"🥈 金银比3Y/5Y/10Y加权分位 {gs_avg}%→**白银**被严重低估。"
+            metal_score += 2
+        elif gs_avg > 60:
+            metal_advice += f"🥈 金银比加权分位 {gs_avg}%→**白银**相对便宜。"
+            metal_score += 1
+        elif gs_avg < 20:
+            metal_advice += f"🥇 金银比加权分位 {gs_avg}%→**黄金**被低估。"
+            metal_score -= 2
+        elif gs_avg < 40:
+            metal_advice += f"🥇 金银比加权分位 {gs_avg}%→**黄金**相对便宜。"
+            metal_score -= 1
+        else:
+            metal_advice += f"⚖️ 金银比加权分位 {gs_avg}%→金银均可。"
+            metal_score += 0
+    else:
+        metal_advice += "⚖️ 金银比分位数据不足。"
+
+    if cg_avg is not None:
+        if cg_avg < 15:
+            metal_advice += f"\n🟤 铜金比加权分位 {cg_avg}%→**铜**被严重低估。"
+            metal_score += 1
+        elif cg_avg < 30:
+            metal_advice += f"\n🟤 铜金比加权分位 {cg_avg}%→**铜**相对便宜。"
+            metal_score += 0
+        elif cg_avg > 80:
+            metal_advice += "\n🟤 铜金比加权分位极高→铜偏贵，暂避。"
+            metal_score -= 1
+        else:
+            metal_advice += f"\n⚖️ 铜金比加权分位 {cg_avg}%→铜价合理。"
+            metal_score += 0
 
     # 预计算报告变量（f-string不能用反斜杠和复杂函数调用）
     dxy_3y, dxy_5y, dxy_10y = _p("DXY","3Y"), _p("DXY","5Y"), _p("DXY","10Y")
@@ -398,37 +445,9 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     ry_3b, ry_5b, ry_10b = _pb("RY","3Y"), _pb("RY","5Y"), _pb("RY","10Y")
     ry_lo = str(pct_data.get("RY",{}).get("low","—")) if pct_data.get("RY",{}).get("low") is not None else "—"
     ry_hi = str(pct_data.get("RY",{}).get("high","—")) if pct_data.get("RY",{}).get("high") is not None else "—"
-    if gs10 is not None and cg10 is not None:
-        if gs10 > 80:
-            metal_advice += "🥈 金银比10年分位极高→**白银**被严重低估。"
-            metal_score += 2
-        elif gs10 > 60:
-            metal_advice += "🥈 金银比10年分位偏高→**白银**相对便宜。"
-            metal_score += 1
-        elif gs10 < 20:
-            metal_advice += "🥇 金银比10年分位极低→**黄金**被低估。"
-            metal_score -= 2
-        elif gs10 < 40:
-            metal_advice += "🥇 金银比10年分位偏低→**黄金**相对便宜。"
-            metal_score -= 1
-        else:
-            metal_advice += "⚖️ 金银比分位中性→金银均可。"
-            metal_score += 0
 
-        if cg10 < 15:
-            metal_advice += "\n🟤 铜金比10年分位极低→**铜**被严重低估。"
-            metal_score += 1
-        elif cg10 < 30:
-            metal_advice += "\n🟤 铜金比10年分位偏低→**铜**相对便宜。"
-            metal_score += 0
-        elif cg_pct_int > 80:
-            metal_advice += "\n🟤 铜金比分位极高→铜偏贵，暂避。"
-            metal_score -= 1
-        else:
-            metal_advice += "\n⚖️ 铜金比分位中性→铜价合理。"
-            metal_score += 0
-
-        # 综合结论
+    # 综合结论
+    if gs_avg is not None or cg_avg is not None:
         if metal_score >= 3:
             metal_verdict = "🥈+🟤 **强烈建议买白银+铜，暂避黄金**"
         elif metal_score >= 1:
@@ -542,7 +561,22 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 | | **10-15** | **-1** | 🔴 衰退恐惧 | ← **{cgr_txt}** |
 | | < 10 | -2 | 🔴 严重收缩 | |
 
-> **入场规则**：金银比 > 85 且铜金比(×10000) < 10 同时触发 → 逆向买入黄金胜率最高（金银比极端=恐惧到顶+铜金比极端=衰退到底）。历史上 2008.10、2015.12、2020.3 三次触发后黄金涨 30%+。
+> **入场规则**：金银比(加权) > 85 且铜金比(×10000·加权) < 10 同时触发 → 逆向买入黄金胜率最高。历史上 2008.10、2015.12、2020.3 三次触发后黄金涨 30%+。
+
+### 评分规则速查
+
+| 指标 | 条件 | 得分 | 权重 |
+|------|------|------|------|
+| DXY | 低于MA20=美元弱 | +2 | 4 |
+| | 高于MA20=美元强 | -2 | |
+| 实际利率 | 低于MA20=机会成本低 | +2 | 4 |
+| | 高于MA20=机会成本高 | -2 | |
+| 金银比 | >85极端恐惧 / 75-85高恐惧 / 45-75中性 / 30-45低恐惧 / <30贪婪 | +3/+1/0/-1/-2 | 3 |
+| 铜金比(×10000) | >25增长 / 15-25中性 / 10-15衰退 / <10严重收缩 | +1/0/-1/-2 | 3 |
+| GLD持仓 | ↑增持 / →持平 / ↓减持 | +1/0/-1 | 4 |
+| COMEX | 净多头 / 净空头 | +1/-1 | 3 |
+| 央行黄金 | 增持 / 持平 / 减持 | +2/0/-2 | 3 |
+| 全球购金 | >200吨 / <200吨 | +1/0 | 3 |
 
 ---
 > 自动生成 · 非投资建议
