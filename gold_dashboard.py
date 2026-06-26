@@ -86,7 +86,9 @@ def compute_percentiles():
                     pct = None
                 result[name][label] = pct
                 result[name][f"{label}_bar"] = percentile_bar(pct)
-        return result
+        # 也返回黄金原始价格序列
+    result["_gold_close"] = gold if len(gold) > 100 else pd.Series(dtype=float)
+    return result
     except Exception as e:
         print(f"[WARN] 历史分位计算失败: {e}")
         return {}
@@ -675,28 +677,23 @@ def main():
         cg_zone = "趋势: " + str(cg_dir)
     scorer.add("Copper_Gold", cg_score, 3)
 
-    # 黄金现价 & 多时间段业绩
+    # 黄金现价 & 多时间段业绩（复用分位函数已下载的黄金序列）
     gold_perf = {"spot": "—", "ytd": "—", "52w_pct": "—", "1y": "—", "2y": "—", "3y": "—", "5y": "—", "10y": "—", "cagr": "—"}
-    try:
-        raw = yf.download("GC=F", period="5y", progress=False, timeout=30)
-        if raw is not None and not raw.empty:
-            gc = raw["Close"].dropna() if "Close" in raw.columns else raw.squeeze().dropna()
-            if len(gc) > 100:
-                last = float(gc.iloc[-1])
-                gold_perf["spot"] = f"${last:.0f}"
-                today = gc.index[-1]
-                yr52 = gc[(gc.index >= today - pd.DateOffset(years=1))]
-                if len(yr52) > 50:
-                    gold_perf["52w_pct"] = f"{int((yr52 < last).sum() / len(yr52) * 100)}%"
-                for label, yrs in [("ytd",0),("1y",1),("2y",2),("3y",3),("5y",5)]:
-                    sub = gc[gc.index >= str(today.year)] if yrs == 0 else gc[gc.index >= (today - pd.DateOffset(years=yrs))]
-                    if len(sub) > 5:
-                        gold_perf[label] = f"{(last/float(sub.iloc[0])-1)*100:+.1f}%"
-                total_yrs = (today - gc.index[0]).days / 365.25
-                if total_yrs > 3:
-                    gold_perf["cagr"] = f"{(last/float(gc.iloc[0]))**(1/total_yrs)*100-100:.1f}%"
-    except Exception as e:
-        print(f"[WARN] gold perf: {e}")
+    gc = pct_data.get("_gold_close", pd.Series(dtype=float))
+    if len(gc) > 100:
+        last = float(gc.iloc[-1])
+        gold_perf["spot"] = f"${last:.0f}"
+        today = gc.index[-1]
+        yr52 = gc[(gc.index >= today - pd.DateOffset(years=1))]
+        if len(yr52) > 50:
+            gold_perf["52w_pct"] = f"{int((yr52 < last).sum() / len(yr52) * 100)}%"
+        for label, yrs in [("ytd",0),("1y",1),("2y",2),("3y",3),("5y",5),("10y",10)]:
+            sub = gc[gc.index >= str(today.year)] if yrs == 0 else gc[gc.index >= (today - pd.DateOffset(years=yrs))]
+            if len(sub) > 5:
+                gold_perf[label] = f"{(last/float(sub.iloc[0])-1)*100:+.1f}%"
+        total_yrs = (today - gc.index[0]).days / 365.25
+        if total_yrs > 3:
+            gold_perf["cagr"] = f"{(last/float(gc.iloc[0]))**(1/total_yrs)*100-100:.1f}%"
 
     price_data = {
         "dxy_val": dxy_val, "dxy_ma": dxy_ma, "dxy_pos": dxy_pos, "dxy_slope": dxy_slope,
