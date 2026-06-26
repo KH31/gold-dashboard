@@ -461,18 +461,16 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     wgc_n = driver_data.get('wgc_now') or "—"
     wgc_s = driver_data.get('wgc_signal') or "数据不足"
 
-    # 黄金现价 & 业绩（从 price_data 获取）
-    gold_spot = price_data.get('gold_spot', '—')
-    gold_ytd = price_data.get('gold_ytd', '—')
-    gold_1y = price_data.get('gold_1y', '—')
+    # 黄金业绩表（从 price_data 获取）
+    gp = price_data.get('gold_perf', {})
 
     return f"""# 黄金看板
 
 > 自动生成 · {now}
 
-| 🥇 现货 | 📅 YTD | 📆 1年 |
-|------|------|------|
-| {gold_spot} | {gold_ytd} | {gold_1y} |
+| 🥇 现货 | 📅 YTD | 📊 52周分位 | 📆 1年 | 2年 | 3年 | 5年 | 10年 | 📈 年化 |
+|------|------|------|------|------|------|------|------|------|
+| {gp.get('spot','—')} | {gp.get('ytd','—')} | {gp.get('52w_pct','—')} | {gp.get('1y','—')} | {gp.get('2y','—')} | {gp.get('3y','—')} | {gp.get('5y','—')} | {gp.get('10y','—')} | {gp.get('cagr','—')} |
 
 ---
 
@@ -643,27 +641,40 @@ def main():
         cg_zone = "趋势: " + str(cg_dir)
     scorer.add("Copper_Gold", cg_score, 3)
 
-    # 黄金现价 & 业绩（复用分位数据里已下载的黄金序列 / falls back to closes）
-    gold_spot, gold_ytd, gold_1y = "—", "—", "—"
+    # 黄金现价 & 多时间段业绩
+    gold_perf = {"spot": "—", "ytd": "—", "52w_pct": "—", "1y": "—", "2y": "—", "3y": "—", "5y": "—", "10y": "—", "cagr": "—"}
     gc_for_spot = closes.get("Gold", pd.Series()).dropna()
     if len(gc_for_spot) < 100:
-        # 分位计算里已下载 10 年数据——直接复用
         try:
-            data = yf.download("GC=F", period="2y", progress=False)
+            data = yf.download("GC=F", period="10y", progress=False)
             if not data.empty:
                 gc_for_spot = data["Close"].dropna()
         except:
             pass
     if len(gc_for_spot) > 100:
-        gold_spot = f"${gc_for_spot.iloc[-1]:.0f}"
-        try:
-            ytd_open = gc_for_spot[gc_for_spot.index >= str(gc_for_spot.index[-1].year)]
-            gold_ytd = f"{((gc_for_spot.iloc[-1] / ytd_open.iloc[0]) - 1) * 100:+.1f}%" if len(ytd_open) > 0 else "—"
-            yr_ago = gc_for_spot.index[-1] - pd.DateOffset(years=1)
-            yr_data = gc_for_spot[gc_for_spot.index >= yr_ago]
-            gold_1y = f"{((gc_for_spot.iloc[-1] / yr_data.iloc[0]) - 1) * 100:+.1f}%" if len(yr_data) > 0 else "—"
-        except:
-            pass
+        last = gc_for_spot.iloc[-1]
+        gold_perf["spot"] = f"${last:.0f}"
+        today = gc_for_spot.index[-1]
+        # 52周分位
+        yr52 = gc_for_spot[gc_for_spot.index >= today - pd.DateOffset(years=1)]
+        if len(yr52) > 50:
+            gold_perf["52w_pct"] = f"{int((yr52 < last).sum() / len(yr52) * 100)}%"
+        # 各时间段回报
+        for label, yrs in [("ytd",0),("1y",1),("2y",2),("3y",3),("5y",5),("10y",10)]:
+            if yrs == 0:
+                start = gc_for_spot[gc_for_spot.index >= str(today.year)]
+                if len(start) > 0:
+                    gold_perf[label] = f"{((last/start.iloc[0])-1)*100:+.1f}%"
+            else:
+                cutoff = today - pd.DateOffset(years=yrs)
+                sub = gc_for_spot[gc_for_spot.index >= cutoff]
+                if len(sub) > 0:
+                    gold_perf[label] = f"{((last/sub.iloc[0])-1)*100:+.1f}%"
+        # 年化 (CAGR)
+        if gc_for_spot.index[0] < today - pd.DateOffset(years=3):
+            yrs_total = (today - gc_for_spot.index[0]).days / 365.25
+            cagr = (last / gc_for_spot.iloc[0]) ** (1 / yrs_total) - 1
+            gold_perf["cagr"] = f"{cagr*100:.1f}%"
 
     price_data = {
         "dxy_val": dxy_val, "dxy_ma": dxy_ma, "dxy_pos": dxy_pos, "dxy_slope": dxy_slope,
@@ -671,7 +682,7 @@ def main():
         "gs_ratio": gs_ratio, "gs_dir": gs_dir, "gs_zone": gs_zone,
         "cg_ratio": cg_ratio, "cg_dir": cg_dir, "cg_zone": cg_zone,
         "pct_data": pct_data,
-        "gold_spot": gold_spot, "gold_ytd": gold_ytd, "gold_1y": gold_1y,
+        "gold_perf": gold_perf,
     }
 
     print("[2/5] 第二层：资金流...")
