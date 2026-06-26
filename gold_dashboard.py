@@ -452,27 +452,10 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     wgc_n = driver_data.get('wgc_now') or "—"
     wgc_s = driver_data.get('wgc_signal') or "数据不足"
 
-    # 黄金现价 & 业绩
-    gold_close = None
-    gold_ytd = "—"
-    gold_1y = "—"
-    gold_spot = "—"
-    try:
-        gold_data = yf.download("GC=F", period="2y", progress=False)
-        if not gold_data.empty:
-            gc = gold_data["Close"].dropna()
-            gold_spot = f"${gc.iloc[-1]:.0f}"
-            # YTD
-            ytd_open = gc[gc.index >= str(gc.index[-1].year)]
-            if len(ytd_open) > 0:
-                gold_ytd = f"{((gc.iloc[-1] / ytd_open.iloc[0]) - 1) * 100:+.1f}%"
-            # 1Y
-            yr_ago = gc.index[-1] - pd.DateOffset(years=1)
-            yr_data = gc[gc.index >= yr_ago]
-            if len(yr_data) > 0:
-                gold_1y = f"{((gc.iloc[-1] / yr_data.iloc[0]) - 1) * 100:+.1f}%"
-    except:
-        pass
+    # 黄金现价 & 业绩（从 price_data 获取）
+    gold_spot = price_data.get('gold_spot', '—')
+    gold_ytd = price_data.get('gold_ytd', '—')
+    gold_1y = price_data.get('gold_1y', '—')
 
     return f"""# 黄金看板
 
@@ -626,12 +609,27 @@ def main():
         cg_zone = "趋势: " + str(cg_dir)
     scorer.add("Copper_Gold", cg_score, 3)
 
+    # 黄金现价 & 业绩（复用已下载数据）
+    gold_spot, gold_ytd, gold_1y = "—", "—", "—"
+    gc = closes.get("Gold", pd.Series()).dropna()
+    if len(gc) > 250:
+        gold_spot = f"${gc.iloc[-1]:.0f}"
+        try:
+            ytd_open = gc[gc.index >= str(gc.index[-1].year)]
+            gold_ytd = f"{((gc.iloc[-1] / ytd_open.iloc[0]) - 1) * 100:+.1f}%" if len(ytd_open) else "—"
+            yr_ago = gc.index[-1] - pd.DateOffset(years=1)
+            yr_data = gc[gc.index >= yr_ago]
+            gold_1y = f"{((gc.iloc[-1] / yr_data.iloc[0]) - 1) * 100:+.1f}%" if len(yr_data) else "—"
+        except:
+            pass
+
     price_data = {
         "dxy_val": dxy_val, "dxy_ma": dxy_ma, "dxy_pos": dxy_pos, "dxy_slope": dxy_slope,
         "real_val": real_val, "real_ma": real_ma, "real_pos": real_pos, "real_slope": real_slope,
         "gs_ratio": gs_ratio, "gs_dir": gs_dir, "gs_zone": gs_zone,
         "cg_ratio": cg_ratio, "cg_dir": cg_dir, "cg_zone": cg_zone,
         "pct_data": pct_data,
+        "gold_spot": gold_spot, "gold_ytd": gold_ytd, "gold_1y": gold_1y,
     }
 
     print("[2/5] 第二层：资金流...")
