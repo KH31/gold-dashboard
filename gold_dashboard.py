@@ -363,6 +363,7 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     cgr_txt = f"{cgr}" if cgr == "—" else f"{cgr} (×10000={round(float(cgr)*10000,1)})"
 
     # 历史分位（从 pct_data dict 提取）
+    pct_data = price_data.get('pct_data') or {}
     def _p(name, yr):
         d = pct_data.get(name, {})
         return d.get(yr)
