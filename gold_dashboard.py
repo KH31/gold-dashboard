@@ -675,39 +675,35 @@ def main():
         cg_zone = "趋势: " + str(cg_dir)
     scorer.add("Copper_Gold", cg_score, 3)
 
-    # 黄金现价 & 多时间段业绩
+    # 黄金现价 & 多时间段业绩（始终直接下载10年数据）
     gold_perf = {"spot": "—", "ytd": "—", "52w_pct": "—", "1y": "—", "2y": "—", "3y": "—", "5y": "—", "10y": "—", "cagr": "—"}
-    gc_for_spot = closes.get("Gold", pd.Series()).dropna()
-    if len(gc_for_spot) < 100:
-        try:
-            data = yf.download("GC=F", period="10y", progress=False)
-            if not data.empty:
-                gc_for_spot = data["Close"].dropna()
-        except:
-            pass
-    if len(gc_for_spot) > 100:
-        last = gc_for_spot.iloc[-1]
+    try:
+        raw = yf.download("GC=F", period="10y", progress=False, auto_adjust=True)
+        if raw is not None and not raw.empty:
+            gc = raw["Close"].dropna() if "Close" in raw.columns else raw.squeeze().dropna()
+        else:
+            gc = pd.Series(dtype=float)
+    except:
+        gc = pd.Series(dtype=float)
+
+    if len(gc) > 200:
+        last = float(gc.iloc[-1])
         gold_perf["spot"] = f"${last:.0f}"
-        today = gc_for_spot.index[-1]
-        # 52周分位
-        yr52 = gc_for_spot[gc_for_spot.index >= today - pd.DateOffset(years=1)]
+        today = gc.index[-1]
+        yr52 = gc[(gc.index >= today - pd.DateOffset(years=1))]
         if len(yr52) > 50:
             gold_perf["52w_pct"] = f"{int((yr52 < last).sum() / len(yr52) * 100)}%"
-        # 各时间段回报
         for label, yrs in [("ytd",0),("1y",1),("2y",2),("3y",3),("5y",5),("10y",10)]:
             if yrs == 0:
-                start = gc_for_spot[gc_for_spot.index >= str(today.year)]
-                if len(start) > 0:
-                    gold_perf[label] = f"{((last/start.iloc[0])-1)*100:+.1f}%"
+                sub = gc[gc.index >= str(today.year)]
             else:
-                cutoff = today - pd.DateOffset(years=yrs)
-                sub = gc_for_spot[gc_for_spot.index >= cutoff]
-                if len(sub) > 0:
-                    gold_perf[label] = f"{((last/sub.iloc[0])-1)*100:+.1f}%"
-        # 年化 (CAGR)
-        if gc_for_spot.index[0] < today - pd.DateOffset(years=3):
-            yrs_total = (today - gc_for_spot.index[0]).days / 365.25
-            cagr = (last / gc_for_spot.iloc[0]) ** (1 / yrs_total) - 1
+                sub = gc[gc.index >= (today - pd.DateOffset(years=yrs))]
+            if len(sub) > 5:
+                ret = (last / float(sub.iloc[0]) - 1) * 100
+                gold_perf[label] = f"{ret:+.1f}%"
+        total_yrs = (today - gc.index[0]).days / 365.25
+        if total_yrs > 3:
+            cagr = (last / float(gc.iloc[0])) ** (1 / total_yrs) - 1
             gold_perf["cagr"] = f"{cagr*100:.1f}%"
 
     price_data = {
