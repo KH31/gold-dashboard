@@ -26,12 +26,13 @@ jobs:
         run: python gold_dashboard.py
 
       - name: Commit & push report
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "gold-bot"
           git config user.email "bot@gold.local"
-          git add 黄金看板.md .gold_cache.json
-          mkdir -p daily
-          cp 黄金看板.md "daily/黄金看板-$(date +%Y-%m-%d).md" 2>/dev/null || true
-          git add daily/ 2>/dev/null || true
-          git diff --staged --quiet || git commit -m "auto: update gold dashboard $(date +%Y-%m-%d)"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          cp 黄金看板.md daily_report_copy.md
+          git add 黄金看板.md daily_report_copy.md .gold_cache.json
+          git diff --cached --quiet || git commit -m "auto: update gold dashboard $(date +%Y-%m-%d)"
           git push
