@@ -678,7 +678,7 @@ def main():
     # 黄金现价 & 多时间段业绩（始终直接下载10年数据）
     gold_perf = {"spot": "—", "ytd": "—", "52w_pct": "—", "1y": "—", "2y": "—", "3y": "—", "5y": "—", "10y": "—", "cagr": "—"}
     try:
-        raw = yf.download("GC=F", period="10y", progress=False, auto_adjust=True)
+        raw = yf.download("GC=F", period="5y", progress=False, timeout=30)
         if raw is not None and not raw.empty:
             gc = raw["Close"].dropna() if "Close" in raw.columns else raw.squeeze().dropna()
         else:
@@ -686,14 +686,14 @@ def main():
     except:
         gc = pd.Series(dtype=float)
 
-    if len(gc) > 200:
+    if len(gc) > 100:
         last = float(gc.iloc[-1])
         gold_perf["spot"] = f"${last:.0f}"
         today = gc.index[-1]
         yr52 = gc[(gc.index >= today - pd.DateOffset(years=1))]
         if len(yr52) > 50:
             gold_perf["52w_pct"] = f"{int((yr52 < last).sum() / len(yr52) * 100)}%"
-        for label, yrs in [("ytd",0),("1y",1),("2y",2),("3y",3),("5y",5),("10y",10)]:
+        for label, yrs in [("ytd",0),("1y",1),("2y",2),("3y",3),("5y",5)]:
             if yrs == 0:
                 sub = gc[gc.index >= str(today.year)]
             else:
@@ -701,10 +701,22 @@ def main():
             if len(sub) > 5:
                 ret = (last / float(sub.iloc[0]) - 1) * 100
                 gold_perf[label] = f"{ret:+.1f}%"
-        total_yrs = (today - gc.index[0]).days / 365.25
-        if total_yrs > 3:
-            cagr = (last / float(gc.iloc[0])) ** (1 / total_yrs) - 1
-            gold_perf["cagr"] = f"{cagr*100:.1f}%"
+        # 10年单独下载（可能超时，失败不影响其余）
+        try:
+            raw10 = yf.download("GC=F", period="10y", progress=False, timeout=30)
+            if raw10 is not None and not raw10.empty:
+                gc10 = raw10["Close"].dropna() if "Close" in raw10.columns else raw10.squeeze().dropna()
+                sub10 = gc10[gc10.index >= (gc10.index[-1] - pd.DateOffset(years=10))]
+                if len(sub10) > 5:
+                    gold_perf["10y"] = f"{(last/float(sub10.iloc[0])-1)*100:+.1f}%"
+                total_yrs = (gc10.index[-1] - gc10.index[0]).days / 365.25
+                if total_yrs > 3:
+                    gold_perf["cagr"] = f"{(last/float(gc10.iloc[0]))**(1/total_yrs)*100-100:.1f}%"
+        except:
+            # 用已有数据算年化
+            total_yrs = (today - gc.index[0]).days / 365.25
+            if total_yrs > 3:
+                gold_perf["cagr"] = f"{(last/float(gc.iloc[0]))**(1/total_yrs)*100-100:.1f}%"
 
     price_data = {
         "dxy_val": dxy_val, "dxy_ma": dxy_ma, "dxy_pos": dxy_pos, "dxy_slope": dxy_slope,
