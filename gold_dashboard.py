@@ -334,10 +334,10 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     s = scorer
     t_val = s.total()
 
-    # Compute sub-scores
-    p_sub = sum(s.scores.get(k, 0) for k in ['DXY','Real_Yield','Gold_Silver','Copper_Gold'])
-    f_sub = sum(s.scores.get(k, 0) for k in ['GLD','COT'])
-    d_sub = sum(s.scores.get(k, 0) for k in ['PBOC','WGC'])
+    # Compute sub-scores (WEIGHTED)
+    p_sub = sum(s.scores.get(k, 0) * s.weight.get(k, 1) for k in ['DXY','Real_Yield','Gold_Silver','Copper_Gold'])
+    f_sub = sum(s.scores.get(k, 0) * s.weight.get(k, 1) for k in ['GLD','COT'])
+    d_sub = sum(s.scores.get(k, 0) * s.weight.get(k, 1) for k in ['PBOC','WGC'])
 
     now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
     v = s.verdict()
