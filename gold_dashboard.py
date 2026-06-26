@@ -553,11 +553,12 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 
 | 比值 | 区间 | 得分 | 含义 | 当前 |
 |------|------|------|------|------|
-| **金银比** | > 85 | +3 | 🔴 极端恐惧 | |
-| | 75-85 | +1 | 🟡 高恐惧 | |
+| **金银比** | > 85 | +3 | 🔴 极端恐惧—银被踩踏，逆向买入信号 | |
+| | 75-85 | +1 | 🟡 高恐惧—避险情绪高涨 | |
 | | **45-75** | **0** | 🟡 中性 | ← **{gsr}** |
-| | 30-45 | -1 | 🟢 低恐惧 | |
-| | < 30 | -2 | 🟢 贪婪 | |
+| | 30-45 | -1 | 🟢 低恐惧—黄金偏贵 | |
+| | < 30 | -2 | 🟢 贪婪—白银过热 | |
+| > 金银比>85=极端恐惧，因为金=纯避险、银=50%工业。比值飙升=人们在疯抢黄金、抛售一切工业资产→极致悲观，但历史上2008.10(84)、2020.3(126)后金+30%、银+100-400%。极端恐惧=逆向买点。 | | | | |
 | **铜金比** (×10000) | > 25 | +1 | 🟢 增长区 | |
 | | 15-25 | 0 | 🟡 中性 | |
 | | **10-15** | **-1** | 🔴 衰退恐惧 | ← **{cgr_txt}** |
@@ -677,14 +678,29 @@ def main():
         cg_zone = "趋势: " + str(cg_dir)
     scorer.add("Copper_Gold", cg_score, 3)
 
-    # 黄金现价 & 多时间段业绩（复用分位函数已下载数据，不做额外下载）
+    # 黄金现价 & 多时间段业绩
     gold_perf = {"spot": "—", "ytd": "—", "52w_pct": "—", "1y": "—", "2y": "—", "3y": "—", "5y": "—", "10y": "—", "cagr": "—"}
-    gc = pct_data.get("_gold_close")
+    gc = None
+    # 方法1：直接下载（云端IP不封，先试快通5年再试全量10年）
+    for period in ["5y", "10y"]:
+        try:
+            raw = yf.download("GC=F", period=period, progress=False, timeout=30)
+            if raw is not None and not raw.empty:
+                gc = raw["Close"].dropna() if "Close" in raw.columns else raw.squeeze().dropna()
+                if len(gc) > 100:
+                    break
+        except:
+            pass
+    # 方法2：兜底——分位数据里已下载的黄金序列
+    if gc is None or len(gc) < 100:
+        gc = pct_data.get("_gold_close")
     if gc is not None and hasattr(gc, 'iloc') and len(gc) > 100:
         last = float(gc.iloc[-1])
         gold_perf["spot"] = f"${last:.0f}"
         today = gc.index[-1]
-        gold_perf["52w_pct"] = f"{int((gc[(gc.index >= today - pd.DateOffset(years=1))] < last).mean() * 100)}%"
+        yr52 = gc[(gc.index >= today - pd.DateOffset(years=1))]
+        if len(yr52) > 50:
+            gold_perf["52w_pct"] = f"{int((yr52 < last).mean() * 100)}%"
         for label, yrs in [("ytd",0),("1y",1),("2y",2),("3y",3),("5y",5),("10y",10)]:
             sub = gc[gc.index >= str(today.year)] if yrs == 0 else gc[gc.index >= (today - pd.DateOffset(years=yrs))]
             if len(sub) > 5:
