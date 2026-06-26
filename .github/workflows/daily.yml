@@ -1,0 +1,32 @@
+name: Daily Gold Dashboard
+
+on:
+  schedule:
+    - cron: "0 1 * * *" # UTC 01:00 = 北京时间 09:00
+  workflow_dispatch:       # 手动触发
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run dashboard
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: python gold_dashboard.py
+
+      - name: Commit & push report
+        run: |
+          git config user.name "gold-bot"
+          git config user.email "bot@gold.local"
+          git add 黄金看板.md daily/黄金看板-*.md .gold_cache.json
+          git diff --staged --quiet || git commit -m "auto: update gold dashboard $(date +%Y-%m-%d)"
+          git push
