@@ -134,19 +134,21 @@ def fetch_gld_holdings():
 
 def fetch_cot_report():
     """抓取 CFTC COT 黄金 Managed Money 净多头"""
-    import io, csv
+    import urllib.request
     try:
         url = "https://www.cftc.gov/dea/newcot/c_disagg.txt"
-        df_text = pd.read_csv(url, header=None, dtype=str)
-        # 找黄金行
-        gold_row = df_text[df_text.iloc[:, 0].str.contains("GOLD - COMMODITY", na=False)]
-        if gold_row.empty:
-            return None, None
-        row = gold_row.iloc[0].tolist()
-        mgd_long = int(row[12].strip())
-        mgd_short = int(row[13].strip())
-        net = mgd_long - mgd_short
-        return net, mgd_long
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as f:
+            for line in f.readlines():
+                line = line.decode("utf-8", errors="ignore")
+                if "GOLD - COMMODITY EXCHANGE INC." in line:
+                    cols = line.strip().split(",")
+                    if len(cols) >= 14:
+                        mgd_long = int(cols[12].strip().replace('"',''))
+                        mgd_short = int(cols[13].strip().replace('"',''))
+                        net = mgd_long - mgd_short
+                        return net, mgd_long
+        return None, None
     except Exception as e:
         print(f"[WARN] COT: {e}")
         return None, None
