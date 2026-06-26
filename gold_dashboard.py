@@ -365,6 +365,59 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     gs_bar = percentile_bar(int(gs_pct)) if isinstance(gs_pct, int) else "░░░░░░░░░░░░░░░░░░░░"
     cg_bar = percentile_bar(int(cg_pct)) if isinstance(cg_pct, int) else "░░░░░░░░░░░░░░░░░░░░"
 
+    # 买金买银买铜 —— 基于分位的建议
+    metal_advice = ""
+    metal_score = 0  # 正=买银/铜，负=买金
+    gs_pct_int = int(gs_pct) if isinstance(gs_pct, (int, float)) and gs_pct != "—" else None
+    cg_pct_int = int(cg_pct) if isinstance(cg_pct, (int, float)) and cg_pct != "—" else None
+
+    if gs_pct_int is not None and cg_pct_int is not None:
+        # 金银比分位高 → 银被低估 → 买银
+        if gs_pct_int > 80:
+            metal_advice += "🥈 金银比分位极高→**白银**被严重低估，优先买白银。"
+            metal_score += 2
+        elif gs_pct_int > 60:
+            metal_advice += "🥈 金银比分位偏高→**白银**相对便宜，偏向白银。"
+            metal_score += 1
+        elif gs_pct_int < 20:
+            metal_advice += "🥇 金银比分位极低→**黄金**被低估，优先买黄金。"
+            metal_score -= 2
+        elif gs_pct_int < 40:
+            metal_advice += "🥇 金银比分位偏低→**黄金**相对便宜，偏向黄金。"
+            metal_score -= 1
+        else:
+            metal_advice += "⚖️ 金银比分位中性→金银均可。"
+            metal_score += 0
+
+        # 铜金比分位低 → 铜被低估 → 买铜
+        if cg_pct_int < 15:
+            metal_advice += "\n🟤 铜金比分位极低→**铜**被严重低估。"
+            metal_score += 1
+        elif cg_pct_int < 30:
+            metal_advice += "\n🟤 铜金比分位偏低→**铜**相对便宜。"
+            metal_score += 0
+        elif cg_pct_int > 80:
+            metal_advice += "\n🟤 铜金比分位极高→铜偏贵，暂避。"
+            metal_score -= 1
+        else:
+            metal_advice += "\n⚖️ 铜金比分位中性→铜价合理。"
+            metal_score += 0
+
+        # 综合结论
+        if metal_score >= 3:
+            metal_verdict = "🥈+🟤 **强烈建议买白银+铜，暂避黄金**"
+        elif metal_score >= 1:
+            metal_verdict = "🥈 **偏向白银**（金银比极端+铜金比偏低）"
+        elif metal_score >= -1:
+            metal_verdict = "⚖️ **三者无明显偏向**，以黄金为主"
+        elif metal_score >= -3:
+            metal_verdict = "🥇 **偏向黄金**（金银比分位偏低）"
+        else:
+            metal_verdict = "🥇 **强烈建议买黄金，暂避其他**"
+    else:
+        metal_advice = "分位数据不足，无法判断。"
+        metal_verdict = "⚪ 待数据更新"
+
     gld_t = flow_data.get('gld_tons') or "—"
     gld_tr = flow_data.get('gld_trend') or "→"
     gld_sig = flow_data.get('gld_signal') or "数据不足"
@@ -427,6 +480,12 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 ## 交易结论
 
 **{v}**
+
+### 买金·买银·买铜
+
+{metal_advice}
+
+> **综合建议**：{metal_verdict}
 
 ---
 > 自动生成 · 非投资建议
