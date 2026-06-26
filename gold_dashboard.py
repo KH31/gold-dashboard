@@ -370,8 +370,20 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 **{v}**
 
 ---
-> 数据源：Yahoo Finance · FRED (DFII10) · SPDR Gold Shares · CFTC COT · 中国外管局 · World Gold Council
 > 自动生成 · 非投资建议
+
+### 数据源链接
+
+| 指标 | 来源 | 验证链接 |
+|------|------|------|
+| DXY | Yahoo Finance | [DX-Y.NYB](https://finance.yahoo.com/quote/DX-Y.NYB/) |
+| 10Y实际利率 | FRED DFII10 | [DFII10](https://fred.stlouisfed.org/series/DFII10) |
+| 金银比 | Yahoo GC=F / SI=F | [GC=F](https://finance.yahoo.com/quote/GC=F/) |
+| 铜金比 | Yahoo HG=F / GC=F | [HG=F](https://finance.yahoo.com/quote/HG=F/) |
+| GLD持仓 | SPDR Gold Shares | [GLD Holdings](https://www.spdrgoldshares.com/) |
+| COMEX净多头 | CFTC COT | [COT Report](https://www.cftc.gov/dea/newcot/c_disagg.txt) |
+| 中国央行黄金 | 外管局 | [SAFE](http://m.safe.gov.cn/) |
+| 全球央行购金 | World Gold Council | [WGC GoldHub](https://www.gold.org/goldhub/data/gold-demand-trends) |
 """
 
 
