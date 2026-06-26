@@ -609,17 +609,25 @@ def main():
         cg_zone = "趋势: " + str(cg_dir)
     scorer.add("Copper_Gold", cg_score, 3)
 
-    # 黄金现价 & 业绩（复用已下载数据）
+    # 黄金现价 & 业绩（复用分位数据里已下载的黄金序列 / falls back to closes）
     gold_spot, gold_ytd, gold_1y = "—", "—", "—"
-    gc = closes.get("Gold", pd.Series()).dropna()
-    if len(gc) > 250:
-        gold_spot = f"${gc.iloc[-1]:.0f}"
+    gc_for_spot = closes.get("Gold", pd.Series()).dropna()
+    if len(gc_for_spot) < 100:
+        # 分位计算里已下载 10 年数据——直接复用
         try:
-            ytd_open = gc[gc.index >= str(gc.index[-1].year)]
-            gold_ytd = f"{((gc.iloc[-1] / ytd_open.iloc[0]) - 1) * 100:+.1f}%" if len(ytd_open) else "—"
-            yr_ago = gc.index[-1] - pd.DateOffset(years=1)
-            yr_data = gc[gc.index >= yr_ago]
-            gold_1y = f"{((gc.iloc[-1] / yr_data.iloc[0]) - 1) * 100:+.1f}%" if len(yr_data) else "—"
+            data = yf.download("GC=F", period="2y", progress=False)
+            if not data.empty:
+                gc_for_spot = data["Close"].dropna()
+        except:
+            pass
+    if len(gc_for_spot) > 100:
+        gold_spot = f"${gc_for_spot.iloc[-1]:.0f}"
+        try:
+            ytd_open = gc_for_spot[gc_for_spot.index >= str(gc_for_spot.index[-1].year)]
+            gold_ytd = f"{((gc_for_spot.iloc[-1] / ytd_open.iloc[0]) - 1) * 100:+.1f}%" if len(ytd_open) > 0 else "—"
+            yr_ago = gc_for_spot.index[-1] - pd.DateOffset(years=1)
+            yr_data = gc_for_spot[gc_for_spot.index >= yr_ago]
+            gold_1y = f"{((gc_for_spot.iloc[-1] / yr_data.iloc[0]) - 1) * 100:+.1f}%" if len(yr_data) > 0 else "—"
         except:
             pass
 
