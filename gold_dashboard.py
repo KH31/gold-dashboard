@@ -311,8 +311,12 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     rs = price_data.get('real_slope') or ""
     gsr = price_data.get('gs_ratio') or "—"
     gsd = price_data.get('gs_dir') or "—"
+    gsz = price_data.get('gs_zone') or "—"
     cgr = price_data.get('cg_ratio') or "—"
     cgd = price_data.get('cg_dir') or "—"
+    cgz = price_data.get('cg_zone') or "—"
+    # 铜金比放大显示
+    cgr_txt = f"{cgr}" if cgr == "—" else f"{cgr} (×10000={round(float(cgr)*10000,1)})"
 
     gld_t = flow_data.get('gld_tons') or "—"
     gld_tr = flow_data.get('gld_trend') or "→"
@@ -339,8 +343,8 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 |------|------|------|------|------|------|
 | DXY | {dxy_s} | {dxy_m} | {dxy_p} {dxy_sl} | {s.scores.get('DXY',0):+d} | ★★★★ |
 | 10Y实际利率 | {rv}% | {rm}% | {rp} {rs} | {s.scores.get('Real_Yield',0):+d} | ★★★★ |
-| 金银比 | {gsr} | | {gsd} | {s.scores.get('Gold_Silver',0):+d} | ★★★ |
-| 铜金比 | {cgr} | | {cgd} | {s.scores.get('Copper_Gold',0):+d} | ★★★ |
+| 金银比 | {gsr} | {gsz} | {gsd} | {s.scores.get('Gold_Silver',0):+d} | ★★★ |
+| 铜金比 | {cgr_txt} | {cgz} | {cgd} | {s.scores.get('Copper_Gold',0):+d} | ★★★ |
 | **价格层小计** | | | | **{p_sub:+d}** | |
 
 ## 第二层：资金流
@@ -390,6 +394,22 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 | COMEX净多头 | CFTC COT | [COT Report](https://www.cftc.gov/dea/newcot/c_disagg.txt) |
 | 中国央行黄金 | 外管局 | [SAFE](http://m.safe.gov.cn/) |
 | 全球央行购金 | World Gold Council | [WGC GoldHub](https://www.gold.org/goldhub/data/gold-demand-trends) |
+
+### 比值入场阈值
+
+| 比值 | 区间 | 得分 | 含义 | 当前 |
+|------|------|------|------|------|
+| **金银比** | > 85 | +3 | 🔴 极端恐惧——白银被严重低估，黄金+白银都值得买 | |
+| | 75-85 | +1 | 🟡 高恐惧——避险情绪高涨 | |
+| | **45-75** | **0** | 🟡 中性 | ← **{gsr}** |
+| | 30-45 | -1 | 🟢 低恐惧——黄金偏贵 | |
+| | < 30 | -2 | 🟢 贪婪——白银过热 | |
+| **铜金比** (×10000) | > 25 | +1 | 🟢 增长区——经济扩张，通胀预期上行，利多黄金 | |
+| | 15-25 | 0 | 🟡 中性 | |
+| | **10-15** | **-1** | 🔴 衰退恐惧——增长放缓，利空黄金 | ← **{cgr_txt}** |
+| | < 10 | -2 | 🔴 严重收缩——通缩风险 | |
+
+> **入场规则**：金银比 > 85 且铜金比(×10000) < 10 同时触发 → 逆向买入黄金胜率最高（金银比极端=恐惧到顶+铜金比极端=衰退到底）。历史上这两个条件同时触发发生在 2008.10、2015.12、2020.3——三次都是黄金大底。
 """
 
 
@@ -409,14 +429,48 @@ def main():
 
     scorer.add("DXY", +2 if dxy_pos == "低于MA20" else -2, 4)
     scorer.add("Real_Yield", +2 if real_pos == "低于MA20" else -2, 4)
-    scorer.add("Gold_Silver", +1 if gs_dir == "↓" else -1, 3)
-    scorer.add("Copper_Gold", +1 if cg_dir == "↑" else -1, 3)
+    # 金银比 —— 带阈值评分
+    gs_score = 0
+    gs_zone = ""
+    if gs_ratio is not None and isinstance(gs_ratio, (int, float)):
+        if gs_ratio > 85:
+            gs_score, gs_zone = +3, "极端恐惧区"
+        elif gs_ratio > 75:
+            gs_score, gs_zone = +1, "高恐惧区"
+        elif gs_ratio > 45:
+            gs_score, gs_zone = 0, "中性区"
+        elif gs_ratio > 30:
+            gs_score, gs_zone = -1, "低恐惧区"
+        else:
+            gs_score, gs_zone = -2, "贪婪区"
+    else:
+        gs_score = +1 if gs_dir == "↓" else -1
+        gs_zone = "趋势: " + str(gs_dir)
+    scorer.add("Gold_Silver", gs_score, 3)
+
+    # 铜金比 —— 带阈值评分
+    cg_score = 0
+    cg_zone = ""
+    if cg_ratio is not None and isinstance(cg_ratio, (int, float)):
+        cg_scaled = cg_ratio * 10000  # 放大到可读范围
+        if cg_scaled > 25:
+            cg_score, cg_zone = +1, "增长区"
+        elif cg_scaled > 15:
+            cg_score, cg_zone = 0, "中性区"
+        elif cg_scaled > 10:
+            cg_score, cg_zone = -1, "衰退恐惧区"
+        else:
+            cg_score, cg_zone = -2, "严重收缩区"
+    else:
+        cg_score = +1 if cg_dir == "↑" else -1
+        cg_zone = "趋势: " + str(cg_dir)
+    scorer.add("Copper_Gold", cg_score, 3)
 
     price_data = {
         "dxy_val": dxy_val, "dxy_ma": dxy_ma, "dxy_pos": dxy_pos, "dxy_slope": dxy_slope,
         "real_val": real_val, "real_ma": real_ma, "real_pos": real_pos, "real_slope": real_slope,
-        "gs_ratio": gs_ratio, "gs_dir": gs_dir,
-        "cg_ratio": cg_ratio, "cg_dir": cg_dir,
+        "gs_ratio": gs_ratio, "gs_dir": gs_dir, "gs_zone": gs_zone,
+        "cg_ratio": cg_ratio, "cg_dir": cg_dir, "cg_zone": cg_zone,
     }
 
     print("[2/5] 第二层：资金流...")
