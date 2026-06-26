@@ -437,6 +437,28 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 
 ---
 
+## 交易结论
+
+**{v}**
+
+### 综合评分
+
+```
+第一层（价格信号）：  {p_sub:+d}
+第二层（资金流）：    {f_sub:+d}
+第三层（长期驱动）：  {d_sub:+d}
+                    ─────
+加权总分：           {t_val:+d}
+```
+
+### 买金·买银·买铜
+
+{metal_advice}
+
+> **综合建议**：{metal_verdict}
+
+---
+
 ## 第一层：价格信号
 
 | 指标 | 现值 | MA20 | 方向 | 得分 | 权重 |
@@ -467,25 +489,21 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 
 ---
 
-## 综合评分
+### 比值入场阈值
 
-```
-第一层（价格信号）：  {p_sub:+d}
-第二层（资金流）：    {f_sub:+d}
-第三层（长期驱动）：  {d_sub:+d}
-                    ─────
-加权总分：           {t_val:+d}
-```
+| 比值 | 区间 | 得分 | 含义 | 当前 |
+|------|------|------|------|------|
+| **金银比** | > 85 | +3 | 🔴 极端恐惧 | |
+| | 75-85 | +1 | 🟡 高恐惧 | |
+| | **45-75** | **0** | 🟡 中性 | ← **{gsr}** |
+| | 30-45 | -1 | 🟢 低恐惧 | |
+| | < 30 | -2 | 🟢 贪婪 | |
+| **铜金比** (×10000) | > 25 | +1 | 🟢 增长区 | |
+| | 15-25 | 0 | 🟡 中性 | |
+| | **10-15** | **-1** | 🔴 衰退恐惧 | ← **{cgr_txt}** |
+| | < 10 | -2 | 🔴 严重收缩 | |
 
-## 交易结论
-
-**{v}**
-
-### 买金·买银·买铜
-
-{metal_advice}
-
-> **综合建议**：{metal_verdict}
+> **入场规则**：金银比 > 85 且铜金比(×10000) < 10 同时触发 → 逆向买入黄金胜率最高（金银比极端=恐惧到顶+铜金比极端=衰退到底）。历史上 2008.10、2015.12、2020.3 三次触发后黄金涨 30%+。
 
 ---
 > 自动生成 · 非投资建议
@@ -502,22 +520,6 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 | COMEX净多头 | CFTC COT | [COT Report](https://www.cftc.gov/dea/newcot/c_disagg.txt) |
 | 中国央行黄金 | 外管局 | [SAFE](http://m.safe.gov.cn/) |
 | 全球央行购金 | World Gold Council | [WGC GoldHub](https://www.gold.org/goldhub/data/gold-demand-trends) |
-
-### 比值入场阈值
-
-| 比值 | 区间 | 得分 | 含义 | 当前 |
-|------|------|------|------|------|
-| **金银比** | > 85 | +3 | 🔴 极端恐惧——白银被严重低估，黄金+白银都值得买 | |
-| | 75-85 | +1 | 🟡 高恐惧——避险情绪高涨 | |
-| | **45-75** | **0** | 🟡 中性 | ← **{gsr}** |
-| | 30-45 | -1 | 🟢 低恐惧——黄金偏贵 | |
-| | < 30 | -2 | 🟢 贪婪——白银过热 | |
-| **铜金比** (×10000) | > 25 | +1 | 🟢 增长区——经济扩张，通胀预期上行，利多黄金 | |
-| | 15-25 | 0 | 🟡 中性 | |
-| | **10-15** | **-1** | 🔴 衰退恐惧——增长放缓，利空黄金 | ← **{cgr_txt}** |
-| | < 10 | -2 | 🔴 严重收缩——通缩风险 | |
-
-> **入场规则**：金银比 > 85 且铜金比(×10000) < 10 同时触发 → 逆向买入黄金胜率最高（金银比极端=恐惧到顶+铜金比极端=衰退到底）。历史上这两个条件同时触发发生在 2008.10、2015.12、2020.3——三次都是黄金大底。
 """
 
 
@@ -666,9 +668,12 @@ def main():
     (OUTPUT_DIR / "黄金看板.md").write_text(report, encoding="utf-8")
     print(f"✅ 看板已保存: 黄金看板.md")
 
-    if VAULT_DAILY_DIR.exists():
-        today = datetime.date.today().isoformat()
-        (VAULT_DAILY_DIR / f"黄金看板-{today}.md").write_text(report, encoding="utf-8")
+    # 历史存档（不覆盖）
+    today = datetime.date.today().isoformat()
+    history_dir = OUTPUT_DIR / "history"
+    history_dir.mkdir(exist_ok=True)
+    (history_dir / f"黄金看板-{today}.md").write_text(report, encoding="utf-8")
+    print(f"✅ 历史存档: history/黄金看板-{today}.md")
 
     # 更新缓存
     new_cache = {}

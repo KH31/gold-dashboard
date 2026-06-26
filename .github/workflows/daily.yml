@@ -34,6 +34,6 @@ jobs:
         run: |
           git config user.name "gold-bot"
           git config user.email "bot@gold.local"
-          git add 黄金看板.md
+          git add 黄金看板.md history/ .gold_cache.json
           git commit -m "auto: update gold dashboard $(date +%Y-%m-%d)" || echo "No changes to commit"
           git push || echo "Push failed (non-blocking)"
