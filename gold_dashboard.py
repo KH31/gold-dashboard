@@ -87,8 +87,8 @@ def compute_percentiles():
                 result[name][label] = pct
                 result[name][f"{label}_bar"] = percentile_bar(pct)
         # 也返回黄金原始价格序列
-    result["_gold_close"] = gold if len(gold) > 100 else pd.Series(dtype=float)
-    return result
+        result["_gold_close"] = gold if len(gold) > 100 else pd.Series(dtype=float)
+        return result
     except Exception as e:
         print(f"[WARN] 历史分位计算失败: {e}")
         return {}
@@ -564,12 +564,17 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 | | **10-15** | **-1** | 🔴 衰退恐惧 | ← **{cgr_txt}** |
 | | < 10 | -2 | 🔴 严重收缩 | |
 
-> **入场规则（三条必须同时满足）**：\
-> ① 比值层：金银比(加权) > 85 **且** 铜金比(×10000·加权) < 10 → 白银/铜被踩踏，比值极端\
-> ② 宏观层：DXY 低于 MA20（美元走弱）**且** 实际利率低于 MA20（机会成本低）→ 黄金本身不贵\
-> ③ 资金层：COMEX 净多头（对冲基金在买）→ 聪明钱站在你这边\
-> 三者共振 = 黄金大底。历史上 2008.10、2015.12、2020.3 满足条件，之后金涨 30%+、银涨 100-400%。\
-> **当前**：①不满足（金银比 70 距 85 还远）| ②不满足（DXY↑+利率↑）| ③不满足（净空头）→ 不入。
+> **入场规则（三条必须同时满足）**：
+>
+> ① 比值层：金银比(加权) > 85 **且** 铜金比(×10000·加权) < 10 → 白银/铜被踩踏，比值极端
+>
+> ② 宏观层：DXY 低于 MA20（美元走弱）**且** 实际利率低于 MA20（机会成本低）→ 黄金本身不贵
+>
+> ③ 资金层：COMEX 净多头（对冲基金在买）→ 聪明钱站在你这边
+>
+> 三者共振 = 黄金大底。2008.10、2015.12、2020.3 满足，之后金+30%、银+100-400%。
+>
+> **当前**：①❌ ②❌ ③❌ → 三项全不满足，不入。
 
 ### 评分规则速查
 
