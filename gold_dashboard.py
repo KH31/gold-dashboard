@@ -383,6 +383,17 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     metal_score = 0
     gs10 = _p("GS", "10Y")
     cg10 = _p("CG", "10Y")
+
+    # 预计算报告变量（f-string不能用反斜杠和复杂函数调用）
+    dxy_3y, dxy_5y, dxy_10y = _p("DXY","3Y"), _p("DXY","5Y"), _p("DXY","10Y")
+    dxy_3b, dxy_5b, dxy_10b = _pb("DXY","3Y"), _pb("DXY","5Y"), _pb("DXY","10Y")
+    dxy_lo, dxy_hi = _v("DXY","low"), _v("DXY","high")
+    gs_3y, gs_5y, gs_10y = _p("GS","3Y"), _p("GS","5Y"), _p("GS","10Y")
+    gs_3b, gs_5b, gs_10b = _pb("GS","3Y"), _pb("GS","5Y"), _pb("GS","10Y")
+    gs_lo, gs_hi = _v("GS","low"), _v("GS","high")
+    cg_3y, cg_5y, cg_10y = _p("CG","3Y"), _p("CG","5Y"), _p("CG","10Y")
+    cg_3b, cg_5b, cg_10b = _pb("CG","3Y"), _pb("CG","5Y"), _pb("CG","10Y")
+    cg_lo, cg_hi = _v("CG","low"), _v("CG","high")
     if gs10 is not None and cg10 is not None:
         if gs10 > 80:
             metal_advice += "🥈 金银比10年分位极高→**白银**被严重低估。"
@@ -474,12 +485,12 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 | 指标 | 现值 | MA20 | 方向 | 得分 | 权重 |
 |------|------|------|------|------|------|
 | DXY | {dxy_s} | {dxy_m} | {dxy_p} {dxy_sl} | {s.scores.get('DXY',0):+d} | ★★★★ |
-| | 分位: 3Y {_p(\"DXY\",\"3Y\")}% {_pb(\"DXY\",\"3Y\")} 5Y {_p(\"DXY\",\"5Y\")}% {_pb(\"DXY\",\"5Y\")} 10Y {_p(\"DXY\",\"10Y\")}% {_pb(\"DXY\",\"10Y\")} | 低 {_v(\"DXY\",\"low\")} | 高 {_v(\"DXY\",\"high\")} | | |
+| | 分位: 3Y {dxy_3y}% {dxy_3b} 5Y {dxy_5y}% {dxy_5b} 10Y {dxy_10y}% {dxy_10b} | 低 {dxy_lo} | 高 {dxy_hi} | | |
 | 10Y实际利率 | {rv}% | {rm}% | {rp} {rs} | {s.scores.get('Real_Yield',0):+d} | ★★★★ |
 | 金银比 | {gsr} | {gsz} | {gsd} | {s.scores.get('Gold_Silver',0):+d} | ★★★ |
-| | 分位: 3Y {_p(\"GS\",\"3Y\")}% {_pb(\"GS\",\"3Y\")} 5Y {_p(\"GS\",\"5Y\")}% {_pb(\"GS\",\"5Y\")} 10Y {_p(\"GS\",\"10Y\")}% {_pb(\"GS\",\"10Y\")} | 低 {_v(\"GS\",\"low\")} | 高 {_v(\"GS\",\"high\")} | | |
+| | 分位: 3Y {gs_3y}% {gs_3b} 5Y {gs_5y}% {gs_5b} 10Y {gs_10y}% {gs_10b} | 低 {gs_lo} | 高 {gs_hi} | | |
 | 铜金比 | {cgr_txt} | {cgz} | {cgd} | {s.scores.get('Copper_Gold',0):+d} | ★★★ |
-| | 分位: 3Y {_p(\"CG\",\"3Y\")}% {_pb(\"CG\",\"3Y\")} 5Y {_p(\"CG\",\"5Y\")}% {_pb(\"CG\",\"5Y\")} 10Y {_p(\"CG\",\"10Y\")}% {_pb(\"CG\",\"10Y\")} | 低 {_v(\"CG\",\"low\")} | 高 {_v(\"CG\",\"high\")} | | |
+| | 分位: 3Y {cg_3y}% {cg_3b} 5Y {cg_5y}% {cg_5b} 10Y {cg_10y}% {cg_10b} | 低 {cg_lo} | 高 {cg_hi} | | |
 | **价格层小计** | | | | **{p_sub:+d}** | |
 
 ## 第二层：资金流
