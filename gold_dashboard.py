@@ -383,7 +383,7 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     def _wavg(v3, v5, v10):
         vals = [v for v in [v3, v5, v10] if v is not None]
         if not vals: return None
-        w3, w5, w10 = 0.2, 0.3, 0.5
+        w3, w5, w10 = 0.3, 0.4, 0.3
         total = 0
         wsum = 0
         if v3 is not None: total += v3*w3; wsum += w3
