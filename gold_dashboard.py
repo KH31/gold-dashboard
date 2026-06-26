@@ -28,6 +28,7 @@ MA = 20
 LOOKBACK = 120
 
 TICKERS = {"DXY": "DX-Y.NYB", "Gold": "GC=F", "Silver": "SI=F", "Copper": "HG=F"}
+HISTORY_YEARS = 10  # 用于分位计算的历史年数
 
 # ═══════════════ 工具函数 ═══════════════
 
@@ -53,6 +54,42 @@ def ma_trend(series):
     pos = "高于MA20" if latest > ma_val else "低于MA20"
     slope = "↑" if series.iloc[-10:].mean() > series.iloc[-20:-10].mean() else "↓"
     return latest, ma_val, pos, slope
+
+def compute_percentiles():
+    """下载 10 年历史数据，计算金银比和铜金比的当前分位"""
+    try:
+        data = yf.download(["GC=F", "SI=F", "HG=F"], period=f"{HISTORY_YEARS}y", progress=False)
+        if data is None or data.empty:
+            return None, None, None, None
+
+        gold = data["Close"]["GC=F"].dropna()
+        silver = data["Close"]["SI=F"].dropna()
+        copper = data["Close"]["HG=F"].dropna()
+
+        # 金银比
+        gs = gold / silver
+        gs_current = float(gs.iloc[-1])
+        gs_pct = int((gs < gs_current).sum() / len(gs) * 100)
+        gs_min = float(gs.min())
+        gs_max = float(gs.max())
+
+        # 铜金比
+        cg = copper / gold
+        cg_current = float(cg.iloc[-1])
+        cg_pct = int((cg < cg_current).sum() / len(cg) * 100)
+        cg_min = float(cg.min())
+        cg_max = float(cg.max())
+
+        return gs_pct, gs_min, gs_max, cg_pct, cg_min, cg_max
+    except Exception as e:
+        print(f"[WARN] 历史分位计算失败: {e}")
+        return None, None, None, None, None, None
+
+def percentile_bar(pct):
+    """生成 ASCII 分位条"""
+    filled = int(pct / 5)
+    bar = "█" * filled + "░" * (20 - filled)
+    return bar
 
 def ratio_trend(a, b):
     if a is None or b is None or len(a) < MA or len(b) < MA:
@@ -318,6 +355,16 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     # 铜金比放大显示
     cgr_txt = f"{cgr}" if cgr == "—" else f"{cgr} (×10000={round(float(cgr)*10000,1)})"
 
+    # 历史分位
+    gs_pct = price_data.get('gs_pct') or "—"
+    gs_min = price_data.get('gs_min') or "—"
+    gs_max = price_data.get('gs_max') or "—"
+    cg_pct = price_data.get('cg_pct') or "—"
+    cg_min = price_data.get('cg_min') or "—"
+    cg_max = price_data.get('cg_max') or "—"
+    gs_bar = percentile_bar(int(gs_pct)) if isinstance(gs_pct, int) else "░░░░░░░░░░░░░░░░░░░░"
+    cg_bar = percentile_bar(int(cg_pct)) if isinstance(cg_pct, int) else "░░░░░░░░░░░░░░░░░░░░"
+
     gld_t = flow_data.get('gld_tons') or "—"
     gld_tr = flow_data.get('gld_trend') or "→"
     gld_sig = flow_data.get('gld_signal') or "数据不足"
@@ -344,7 +391,9 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 | DXY | {dxy_s} | {dxy_m} | {dxy_p} {dxy_sl} | {s.scores.get('DXY',0):+d} | ★★★★ |
 | 10Y实际利率 | {rv}% | {rm}% | {rp} {rs} | {s.scores.get('Real_Yield',0):+d} | ★★★★ |
 | 金银比 | {gsr} | {gsz} | {gsd} | {s.scores.get('Gold_Silver',0):+d} | ★★★ |
+| | 10年分位: {gs_pct}% → {gs_bar} | 最低 {gs_min} | 最高 {gs_max} | | |
 | 铜金比 | {cgr_txt} | {cgz} | {cgd} | {s.scores.get('Copper_Gold',0):+d} | ★★★ |
+| | 10年分位: {cg_pct}% → {cg_bar} | 最低 {cg_min:.4f} | 最高 {cg_max:.4f} | | |
 | **价格层小计** | | | | **{p_sub:+d}** | |
 
 ## 第二层：资金流
@@ -421,6 +470,8 @@ def main():
     print("[1/5] 第一层：价格信号...")
     closes = fetch_yahoo()
     real_yield = fetch_real_yield()
+    print("[*] 计算历史分位...")
+    gs_pct, gs_min, gs_max, cg_pct, cg_min, cg_max = compute_percentiles()
 
     dxy_val, dxy_ma, dxy_pos, dxy_slope = ma_trend(closes.get("DXY"))
     real_val, real_ma, real_pos, real_slope = ma_trend(real_yield)
@@ -471,6 +522,8 @@ def main():
         "real_val": real_val, "real_ma": real_ma, "real_pos": real_pos, "real_slope": real_slope,
         "gs_ratio": gs_ratio, "gs_dir": gs_dir, "gs_zone": gs_zone,
         "cg_ratio": cg_ratio, "cg_dir": cg_dir, "cg_zone": cg_zone,
+        "gs_pct": gs_pct, "gs_min": gs_min, "gs_max": gs_max,
+        "cg_pct": cg_pct, "cg_min": cg_min, "cg_max": cg_max,
     }
 
     print("[2/5] 第二层：资金流...")
