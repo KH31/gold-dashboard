@@ -61,7 +61,7 @@ def ratio_trend(a, b):
     if len(common) < MA:
         return None, "数据不足", "数据不足"
     ratio = a[common] / b[common]
-    return round(float(ratio.iloc[-1]), 2), "↑" if ratio.iloc[-1] > ratio.iloc[-MA:].mean() else "↓", None
+    return round(float(ratio.iloc[-1]), 4), "↑" if ratio.iloc[-1] > ratio.iloc[-MA:].mean() else "↓", None
 
 def trend_direction(series):
     """返回 ↑ ↓ →"""
