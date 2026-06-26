@@ -394,6 +394,10 @@ def _make_report(scorer, price_data, flow_data, driver_data):
     cg_3y, cg_5y, cg_10y = _p("CG","3Y"), _p("CG","5Y"), _p("CG","10Y")
     cg_3b, cg_5b, cg_10b = _pb("CG","3Y"), _pb("CG","5Y"), _pb("CG","10Y")
     cg_lo, cg_hi = _v("CG","low"), _v("CG","high")
+    ry_3y, ry_5y, ry_10y = _p("RY","3Y"), _p("RY","5Y"), _p("RY","10Y")
+    ry_3b, ry_5b, ry_10b = _pb("RY","3Y"), _pb("RY","5Y"), _pb("RY","10Y")
+    ry_lo = str(pct_data.get("RY",{}).get("low","—")) if pct_data.get("RY",{}).get("low") is not None else "—"
+    ry_hi = str(pct_data.get("RY",{}).get("high","—")) if pct_data.get("RY",{}).get("high") is not None else "—"
     if gs10 is not None and cg10 is not None:
         if gs10 > 80:
             metal_advice += "🥈 金银比10年分位极高→**白银**被严重低估。"
@@ -428,13 +432,18 @@ def _make_report(scorer, price_data, flow_data, driver_data):
         if metal_score >= 3:
             metal_verdict = "🥈+🟤 **强烈建议买白银+铜，暂避黄金**"
         elif metal_score >= 1:
-            metal_verdict = "🥈 **偏向白银**（金银比极端+铜金比偏低）"
+            metal_verdict = "🥈 **偏向白银**（分位比价支持）"
         elif metal_score >= -1:
             metal_verdict = "⚖️ **三者无明显偏向**，以黄金为主"
         elif metal_score >= -3:
-            metal_verdict = "🥇 **偏向黄金**（金银比分位偏低）"
+            metal_verdict = "🥇 **偏向黄金**（分位比价支持）"
         else:
             metal_verdict = "🥇 **强烈建议买黄金，暂避其他**"
+        # 融合全看板评分
+        if t_val <= -10:
+            metal_verdict += f" | 看板加权总分 {t_val:+d}，整体偏空，仓位控制为优先。"
+        elif t_val >= 3:
+            metal_verdict += f" | 看板加权总分 {t_val:+d}，多指标共振，可适度加仓。"
     else:
         metal_advice = "分位数据不足，无法判断。"
         metal_verdict = "⚪ 待数据更新"
@@ -496,6 +505,7 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 | DXY | {dxy_s} | {dxy_m} | {dxy_p} {dxy_sl} | {s.scores.get('DXY',0):+d} | ★★★★ |
 | | 分位: 3Y {dxy_3y}% {dxy_3b} 5Y {dxy_5y}% {dxy_5b} 10Y {dxy_10y}% {dxy_10b} | 低 {dxy_lo} | 高 {dxy_hi} | | |
 | 10Y实际利率 | {rv}% | {rm}% | {rp} {rs} | {s.scores.get('Real_Yield',0):+d} | ★★★★ |
+| | 分位: 3Y {ry_3y}% {ry_3b} 5Y {ry_5y}% {ry_5b} 10Y {ry_10y}% {ry_10b} | 低 {ry_lo} | 高 {ry_hi} | | |
 | 金银比 | {gsr} | {gsz} | {gsd} | {s.scores.get('Gold_Silver',0):+d} | ★★★ |
 | | 分位: 3Y {gs_3y}% {gs_3b} 5Y {gs_5y}% {gs_5b} 10Y {gs_10y}% {gs_10b} | 低 {gs_lo} | 高 {gs_hi} | | |
 | 铜金比 | {cgr_txt} | {cgz} | {cgd} | {s.scores.get('Copper_Gold',0):+d} | ★★★ |
@@ -551,6 +561,8 @@ def _make_report(scorer, price_data, flow_data, driver_data):
 | COMEX净多头 | CFTC COT | [COT Report](https://www.cftc.gov/dea/newcot/c_disagg.txt) |
 | 中国央行黄金 | 外管局 | [SAFE](http://m.safe.gov.cn/) |
 | 全球央行购金 | World Gold Council | [WGC GoldHub](https://www.gold.org/goldhub/data/gold-demand-trends) |
+| 黄金现价/图表 | GoldPrice.org | [GoldPrice](https://goldprice.org/) |
+| 技术图表 | TradingView | [TradingView Gold](https://www.tradingview.com/symbols/COMEX-GC1%21/) |
 """
 
 
@@ -564,6 +576,28 @@ def main():
     real_yield = fetch_real_yield()
     print("[*] 计算历史分位...")
     pct_data = compute_percentiles()  # dict with DXY/GS/CG → {3Y,5Y,10Y}_pct, low, high
+
+    # 实际利率 3/5/10Y 分位（FRED 数据单独计算）
+    ry_pct = {}
+    if len(real_yield) > 500:
+        today = pd.Timestamp.now()
+        current_ry = float(real_yield.iloc[-1])
+        for yrs, label in [(3,"3Y"),(5,"5Y"),(10,"10Y")]:
+            cutoff = today - pd.DateOffset(years=yrs)
+            sub = real_yield[real_yield.index >= cutoff]
+            if len(sub) > 100:
+                ry_pct[label] = int((sub < current_ry).sum() / len(sub) * 100)
+                ry_pct[f"{label}_bar"] = percentile_bar(ry_pct[label])
+            else:
+                ry_pct[label] = None
+                ry_pct[f"{label}_bar"] = "░░░░░░░░░░░░░░░░░░░░"
+    else:
+        for label in ["3Y","5Y","10Y"]:
+            ry_pct[label] = None
+            ry_pct[f"{label}_bar"] = "░░░░░░░░░░░░░░░░░░░░"
+    ry_pct["low"] = round(float(real_yield.min()), 2) if len(real_yield) > 0 else None
+    ry_pct["high"] = round(float(real_yield.max()), 2) if len(real_yield) > 0 else None
+    pct_data["RY"] = ry_pct
 
     dxy_val, dxy_ma, dxy_pos, dxy_slope = ma_trend(closes.get("DXY"))
     real_val, real_ma, real_pos, real_slope = ma_trend(real_yield)
