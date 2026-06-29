@@ -705,7 +705,10 @@ def main():
     if gc is None or len(gc) < 100:
         gc = pct_data.get("_gold_close")
     if gc is not None and hasattr(gc, 'iloc') and len(gc) > 100:
-        last = float(gc.iloc[-1])
+        def _fv(x):
+            try: return float(x)
+            except (TypeError,ValueError): return float(x.iloc[0]) if hasattr(x,'iloc') else 0
+        last = _fv(gc.iloc[-1])
         gold_perf["spot"] = f"${last:.0f}"
         today = gc.index[-1]
         yr52 = gc[(gc.index >= today - pd.DateOffset(years=1))]
@@ -714,9 +717,9 @@ def main():
         for label, yrs in [("ytd",0),("1y",1),("2y",2),("3y",3),("5y",5),("10y",10)]:
             sub = gc[gc.index >= str(today.year)] if yrs == 0 else gc[gc.index >= (today - pd.DateOffset(years=yrs))]
             if len(sub) > 5:
-                gold_perf[label] = f"{(last/float(sub.iloc[0])-1)*100:+.1f}%"
+                gold_perf[label] = f"{(last/_fv(sub.iloc[0])-1)*100:+.1f}%"
         ttl = (today - gc.index[0]).days / 365.25
-        gold_perf["cagr"] = f"{(last/float(gc.iloc[0]))**(1/ttl)*100-100:.1f}%" if ttl > 3 else "—"
+        gold_perf["cagr"] = f"{(last/_fv(gc.iloc[0]))**(1/ttl)*100-100:.1f}%" if ttl > 3 else "—"
 
     price_data = {
         "dxy_val": dxy_val, "dxy_ma": dxy_ma, "dxy_pos": dxy_pos, "dxy_slope": dxy_slope,
