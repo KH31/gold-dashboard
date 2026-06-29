@@ -705,6 +705,11 @@ def main():
     if gc is None or len(gc) < 100:
         gc = pct_data.get("_gold_close")
     if gc is not None and hasattr(gc, 'iloc') and len(gc) > 100:
+        # Flatten to Series in case yfinance returned DataFrame
+        if isinstance(gc, pd.DataFrame):
+            gc = gc.iloc[:, 0] if gc.shape[1] == 1 else gc
+        if isinstance(gc, pd.DataFrame):
+            gc = pd.Series(dtype=float)
         def _fv(x):
             try: return float(x)
             except (TypeError,ValueError): return float(x.iloc[0]) if hasattr(x,'iloc') else 0
