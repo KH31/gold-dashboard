@@ -691,16 +691,20 @@ def main():
     # 黄金现价 & 多时间段业绩
     gold_perf = {"spot": "—", "ytd": "—", "52w_pct": "—", "1y": "—", "2y": "—", "3y": "—", "5y": "—", "10y": "—", "cagr": "—"}
     gc = None
-    # 方法1：直接下载（云端IP不封，先试快通5年再试全量10年）
-    for period in ["5y", "10y"]:
+    # 方法1：直接下载5年+10年两份数据（不提前break）
+    gc5, gc10 = None, None
+    for period, target in [("5y", "gc5"), ("10y", "gc10")]:
         try:
             raw = yf.download("GC=F", period=period, progress=False, timeout=30)
             if raw is not None and not raw.empty:
-                gc = raw["Close"].dropna() if "Close" in raw.columns else raw.squeeze().dropna()
-                if len(gc) > 100:
-                    break
-        except:
-            pass
+                s = raw["Close"].dropna() if "Close" in raw.columns else raw.squeeze().dropna()
+                if isinstance(s, pd.DataFrame): s = s.iloc[:, 0]
+                if len(s) > 100:
+                    if target == "gc5": gc5 = s
+                    else: gc10 = s
+        except: pass
+    # gc 用5年做1-5Y回报；gc10 用10年做10Y回报+CAGR
+    gc = gc5 if gc5 is not None else (gc10 if gc10 is not None else None)
     # 方法2：兜底——分位数据里已下载的黄金序列
     if gc is None or len(gc) < 100:
         gc = pct_data.get("_gold_close")
@@ -719,12 +723,18 @@ def main():
         yr52 = gc[(gc.index >= today - pd.DateOffset(years=1))]
         if len(yr52) > 50:
             gold_perf["52w_pct"] = f"{int((yr52 < last).mean() * 100)}%"
-        for label, yrs in [("ytd",0),("1y",1),("2y",2),("3y",3),("5y",5),("10y",10)]:
+        # 1-5年用5年数据；10年+CAGR用10年数据
+        for label, yrs in [("ytd",0),("1y",1),("2y",2),("3y",3),("5y",5)]:
             sub = gc[gc.index >= str(today.year)] if yrs == 0 else gc[gc.index >= (today - pd.DateOffset(years=yrs))]
             if len(sub) > 5:
                 gold_perf[label] = f"{(last/_fv(sub.iloc[0])-1)*100:+.1f}%"
-        ttl = (today - gc.index[0]).days / 365.25
-        gold_perf["cagr"] = f"{(last/_fv(gc.iloc[0]))**(1/ttl)*100-100:.1f}%" if ttl > 3 else "—"
+        # 10年回报用 gc10
+        if gc10 is not None and len(gc10) > 100:
+            sub10 = gc10[gc10.index >= (today - pd.DateOffset(years=10))]
+            if len(sub10) > 5:
+                gold_perf["10y"] = f"{(last/_fv(sub10.iloc[0])-1)*100:+.1f}%"
+            ttl10 = (today - gc10.index[0]).days / 365.25
+            gold_perf["cagr"] = f"{(last/_fv(gc10.iloc[0]))**(1/ttl10)*100-100:.1f}%" if ttl10 > 3 else "—"
 
     price_data = {
         "dxy_val": dxy_val, "dxy_ma": dxy_ma, "dxy_pos": dxy_pos, "dxy_slope": dxy_slope,
